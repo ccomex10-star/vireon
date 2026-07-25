@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --bg: #F7F8F4;
@@ -512,6 +513,20 @@
     </div>
   </div>
 
+  <div class="section-head"><h2>Sincronización con la nube</h2></div>
+  <div class="card full" style="margin-bottom:16px;">
+    <p style="font-size:13px; color:var(--ink-soft); margin:0 0 12px;" id="sync-status-text">Sin conectar. Pegá los datos de tu proyecto Supabase para activar el link de tu nutricionista.</p>
+    <div class="field"><label>Project URL</label><input type="text" id="sb-url" placeholder="https://xxxx.supabase.co"></div>
+    <div class="field"><label>Anon public key</label><input type="text" id="sb-key" placeholder="eyJhbGciOi..."></div>
+    <button class="btn-primary" onclick="saveSyncConfig()" style="margin-top:0;">Guardar y conectar</button>
+    <button class="btn-secondary" onclick="syncAllNow()" id="btn-sync-now" style="display:none;">🔄 Sincronizar todo ahora</button>
+    <div id="sync-link-block" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--line);">
+      <div class="row-title" style="margin-bottom:6px;">Link para tu nutricionista</div>
+      <div style="font-size:12px; color:var(--ink-soft); word-break:break-all; font-family:var(--mono); background:var(--sage-pale); padding:10px; border-radius:10px;" id="sync-link-display"></div>
+      <button class="btn-secondary" onclick="copyShareLink()">📋 Copiar link</button>
+    </div>
+  </div>
+
   <div class="section-head"><h2>Compartir con tu nutricionista</h2></div>
   <div class="card full" style="margin-bottom:16px;">
     <p style="font-size:13px; color:var(--ink-soft); margin:0 0 12px;">Generá un reporte de los últimos 7 días con tu evolución, hábitos y fotos comparativas, listo para enviar por WhatsApp o email.</p>
@@ -721,6 +736,7 @@ function saveMeal(){
   const img = document.querySelector('#meal-photo-wrap img'); if(img) img.remove();
   document.querySelectorAll('#scale-hunger .scale-dot, #scale-fullness .scale-dot').forEach(d=>d.classList.remove('selected'));
   showToast('Comida registrada 🌿');
+  pushRow('meals', {id:meal.id, ts:meal.ts, date:meal.date, type:meal.type, description:meal.desc, photo:meal.photo, hunger:meal.hunger, fullness:meal.fullness, mood:meal.mood, cal:meal.cal, prot:meal.prot, fat:meal.fat, carb:meal.carb});
   renderMeals(); renderHome();
 }
 function renderMeals(){
@@ -761,6 +777,8 @@ function addWater(containerId){
   db.hydration.push({id:'h'+Date.now(), ts:Date.now(), date:todayISO(), ml:c.ml, label:c.label});
   save(); renderAgua(); renderHome();
   showToast('+'+c.ml+' ml registrados 💧');
+  const lastH = db.hydration[db.hydration.length-1];
+  pushRow('hydration', {id:lastH.id, ts:lastH.ts, date:lastH.date, ml:lastH.ml, label:lastH.label});
 }
 function showAddContainer(){ document.getElementById('add-container-form').style.display='block'; }
 function addContainer(){
@@ -793,6 +811,8 @@ function saveWeight(){
   document.querySelectorAll('#angle-chips .chip').forEach((c,i)=>c.classList.toggle('selected', i===0));
   window.sel_angle=null;
   showToast('Peso registrado ⚖️');
+  const lastW = db.weights[0];
+  pushRow('weights', {id:lastW.id, ts:lastW.ts, date:lastW.date, kg:lastW.kg, grasa:lastW.grasa, musculo:lastW.musculo, photo:lastW.photo, angle:lastW.angle});
   renderPeso(); renderHome();
 }
 function renderPeso(){
@@ -861,6 +881,7 @@ function saveSleep(){
   document.querySelectorAll('#scale-sleep-quality .scale-dot').forEach(d=>d.classList.remove('selected'));
   window.sel_sleepQ=null;
   showToast('Sueño registrado 😴');
+  pushRow('sleep', {id:db.sleep[0].id, ts:db.sleep[0].ts, date:db.sleep[0].date, hours:db.sleep[0].hours, quality:db.sleep[0].quality});
   renderHome();
 }
 function saveMood(){
@@ -870,6 +891,7 @@ function saveMood(){
   document.querySelectorAll('#mood-day-chips .chip').forEach(c=>c.classList.remove('selected'));
   window.sel_moodDay=null;
   showToast('Ánimo registrado 💭');
+  pushRow('mood', {id:db.mood[0].id, ts:db.mood[0].ts, date:db.mood[0].date, mood:db.mood[0].mood});
   renderHome();
 }
 function saveWorkout(){
@@ -880,6 +902,7 @@ function saveWorkout(){
   save();
   document.getElementById('wk-type').value=''; document.getElementById('wk-dur').value=''; document.getElementById('wk-int').value='';
   showToast('Entrenamiento registrado 🏃');
+  pushRow('workouts', {id:db.workouts[0].id, ts:db.workouts[0].ts, date:db.workouts[0].date, type:db.workouts[0].type, dur:db.workouts[0].dur, intensity:db.workouts[0].intensity});
   renderHome();
 }
 
@@ -1151,6 +1174,69 @@ function importData(input){
   reader.readAsText(file);
 }
 
+/* ===================== CLOUD SYNC ===================== */
+function getPatientId(){
+  let pid = localStorage.getItem('vireon_patient_id');
+  if(!pid){
+    pid = 'p_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+    localStorage.setItem('vireon_patient_id', pid);
+  }
+  return pid;
+}
+let sbClient = null;
+function initSync(){
+  const url = localStorage.getItem('vireon_sb_url');
+  const key = localStorage.getItem('vireon_sb_key');
+  if(url && key && window.supabase){
+    try{ sbClient = window.supabase.createClient(url, key); } catch(e){ sbClient = null; }
+  }
+  document.getElementById('sb-url').value = url || '';
+  document.getElementById('sb-key').value = key || '';
+  const linked = !!sbClient;
+  document.getElementById('sync-status-text').textContent = linked
+    ? 'Conectado. Tus registros se sincronizan automáticamente.'
+    : 'Sin conectar. Pegá los datos de tu proyecto Supabase para activar el link de tu nutricionista.';
+  document.getElementById('btn-sync-now').style.display = linked ? 'block' : 'none';
+  document.getElementById('sync-link-block').style.display = linked ? 'block' : 'none';
+  if(linked){
+    const link = location.href.replace(/index\.html.*$/,'').replace(/\/$/,'') + '/viewer.html?p=' + getPatientId() + '&u=' + encodeURIComponent(url) + '&k=' + encodeURIComponent(key);
+    document.getElementById('sync-link-display').textContent = link;
+  }
+}
+function saveSyncConfig(){
+  const url = document.getElementById('sb-url').value.trim();
+  const key = document.getElementById('sb-key').value.trim();
+  if(!url || !key){ showToast('Completá los dos campos'); return; }
+  localStorage.setItem('vireon_sb_url', url);
+  localStorage.setItem('vireon_sb_key', key);
+  initSync();
+  showToast('Conectado ✔ — ahora podés sincronizar tus datos');
+}
+async function pushRow(table, row){
+  if(!sbClient) return;
+  try{
+    await sbClient.from(table).upsert({...row, patient_id: getPatientId()});
+  } catch(e){ /* offline o error de red: los datos siguen guardados localmente, se reintenta con "sincronizar todo ahora" */ }
+}
+async function syncAllNow(){
+  if(!sbClient){ showToast('Conectá tu cuenta primero'); return; }
+  showToast('Sincronizando…');
+  const jobs = [
+    ...db.meals.map(m=>pushRow('meals', {id:m.id, ts:m.ts, date:m.date, type:m.type, description:m.desc, photo:m.photo, hunger:m.hunger, fullness:m.fullness, mood:m.mood, cal:m.cal, prot:m.prot, fat:m.fat, carb:m.carb})),
+    ...db.hydration.map(h=>pushRow('hydration', {id:h.id, ts:h.ts, date:h.date, ml:h.ml, label:h.label})),
+    ...db.weights.map(w=>pushRow('weights', {id:w.id, ts:w.ts, date:w.date, kg:w.kg, grasa:w.grasa, musculo:w.musculo, photo:w.photo, angle:w.angle})),
+    ...db.sleep.map(s=>pushRow('sleep', {id:s.id, ts:s.ts, date:s.date, hours:s.hours, quality:s.quality})),
+    ...db.mood.map(m=>pushRow('mood', {id:m.id, ts:m.ts, date:m.date, mood:m.mood})),
+    ...db.workouts.map(w=>pushRow('workouts', {id:w.id, ts:w.ts, date:w.date, type:w.type, dur:w.dur, intensity:w.intensity})),
+  ];
+  await Promise.all(jobs);
+  showToast('Sincronización completa ✔');
+}
+function copyShareLink(){
+  const text = document.getElementById('sync-link-display').textContent;
+  navigator.clipboard?.writeText(text).then(()=>showToast('Link copiado 📋')).catch(()=>showToast('Copiá el link manualmente'));
+}
+
 /* ===================== INIT ===================== */
 function renderAll(){
   document.getElementById('settings-name-sub').textContent = db.profile.name || 'Sin definir';
@@ -1165,6 +1251,7 @@ if(db.profile.onboarded){
   document.getElementById('onb-name').value='';
 }
 renderAll();
+initSync();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
