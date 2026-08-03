@@ -129,7 +129,11 @@
   .row-title{font-weight:700; font-size:14px;}
   .row-sub{font-size:12px; color:var(--ink-soft); margin-top:1px;}
   .row-time{font-family:var(--mono); font-size:11px; color:var(--ink-soft); flex-shrink:0;}
-  .row-photo{width:44px; height:44px; border-radius:10px; object-fit:cover; flex-shrink:0;}
+  .row-photo{width:44px; height:44px; border-radius:10px; object-fit:cover; flex-shrink:0; cursor:zoom-in;}
+  .lightbox{position:fixed; inset:0; background:rgba(20,26,25,0.92); z-index:500; display:none; align-items:center; justify-content:center; padding:24px;}
+  .lightbox.show{display:flex;}
+  .lightbox img{max-width:100%; max-height:100%; border-radius:8px;}
+  .lightbox-close{position:absolute; top:20px; right:20px; background:rgba(255,255,255,0.15); border:none; color:#fff; width:38px; height:38px; border-radius:50%; font-size:20px;}
 
   .empty{
     text-align:center; padding:36px 20px; color:var(--ink-soft); font-size:13px;
@@ -189,7 +193,7 @@
   .container-btn:active{background:var(--sage-pale); border-color:var(--sage);}
 
   /* ---------- sparkline ---------- */
-  .spark{width:100%; height:64px;}
+  .spark{width:100%; height:100px;}
 
   /* ---------- bottom nav ---------- */
   .navbar{
@@ -356,7 +360,7 @@
     <label>Foto (opcional)</label>
     <div class="photo-upload" id="meal-photo-wrap">
       <span id="meal-photo-hint">Tocá para agregar una foto del plato</span>
-      <input type="file" accept="image/*" capture="environment" onchange="previewPhoto(this,'meal-photo-wrap','meal-photo-hint')">
+      <input type="file" accept="image/*" onchange="previewPhoto(this,'meal-photo-wrap','meal-photo-hint')">
     </div>
   </div>
 
@@ -415,7 +419,7 @@
   </div>
 
   <div class="section-head"><h2>Últimos 7 días</h2></div>
-  <div class="card full"><svg class="spark" id="agua-spark" viewBox="0 0 300 64" preserveAspectRatio="none"></svg></div>
+  <div class="card full"><svg class="spark" id="agua-spark" viewBox="0 0 300 100" preserveAspectRatio="none"></svg></div>
 </div>
 
 <!-- ============ PESO ============ -->
@@ -439,13 +443,13 @@
     <label>Foto corporal (opcional)</label>
     <div class="photo-upload" id="peso-photo-wrap">
       <span id="peso-photo-hint">Tocá para agregar la foto de hoy</span>
-      <input type="file" accept="image/*" capture="environment" onchange="previewPhoto(this,'peso-photo-wrap','peso-photo-hint')">
+      <input type="file" accept="image/*" onchange="previewPhoto(this,'peso-photo-wrap','peso-photo-hint')">
     </div>
   </div>
   <button class="btn-primary" onclick="saveWeight()">Guardar registro</button>
 
   <div class="section-head"><h2>Evolución</h2></div>
-  <div class="card full"><svg class="spark" id="peso-spark" viewBox="0 0 300 64" preserveAspectRatio="none"></svg></div>
+  <div class="card full"><svg class="spark" id="peso-spark" viewBox="0 0 300 100" preserveAspectRatio="none"></svg></div>
 
   <div class="section-head"><h2>Fotos comparativas</h2></div>
   <div class="card full" id="compare-card">
@@ -579,6 +583,10 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="">
+</div>
 
 <script>
 /* ===================== STORAGE ===================== */
@@ -745,7 +753,7 @@ function renderMeals(){
   if(!items.length){ list.innerHTML = '<div class="empty">Todavía no registraste comidas. Cada registro suma, sin presión.</div>'; return; }
   list.innerHTML = items.map(m=>`
     <div class="row">
-      ${m.photo ? `<img class="row-photo" src="${m.photo}">` : `<div class="row-emoji">🍽️</div>`}
+      ${m.photo ? `<img class="row-photo" src="${m.photo}" onclick="openLightbox('${m.photo}')">` : `<div class="row-emoji">🍽️</div>`}
       <div class="row-body">
         <div class="row-title">${m.type}${m.desc ? ' · '+escapeHtml(m.desc).slice(0,40) : ''}</div>
         <div class="row-sub">${m.mood ? m.mood+' · ' : ''}${m.cal ? m.cal+' kcal' : 'sin calorías registradas'}</div>
@@ -754,6 +762,11 @@ function renderMeals(){
     </div>`).join('');
 }
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function openLightbox(src){
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('show');
+}
+function closeLightbox(){ document.getElementById('lightbox').classList.remove('show'); }
 
 /* ===================== HYDRATION ===================== */
 function renderAgua(){
@@ -822,7 +835,7 @@ function renderPeso(){
   else {
     list.innerHTML = items.map(w=>`
       <div class="row">
-        ${w.photo ? `<img class="row-photo" src="${w.photo}">` : `<div class="row-emoji">⚖️</div>`}
+        ${w.photo ? `<img class="row-photo" src="${w.photo}" onclick="openLightbox('${w.photo}')">` : `<div class="row-emoji">⚖️</div>`}
         <div class="row-body">
           <div class="row-title">${w.kg} kg</div>
           <div class="row-sub">${w.grasa?'Grasa '+w.grasa+'% · ':''}${w.musculo?'Músculo '+w.musculo+'%':''}</div>
@@ -830,7 +843,7 @@ function renderPeso(){
         <div class="row-time">${new Date(w.ts).toLocaleDateString('es-AR')}</div>
       </div>`).join('');
   }
-  drawSpark('peso-spark', [...db.weights].reverse().slice(-14).map(w=>({date:w.date, v:w.kg})), true);
+  drawSpark('peso-spark', [...db.weights].reverse().slice(-8).map(w=>({date:w.date, v:w.kg})), true);
   populateCompareSelects();
 }
 
@@ -859,11 +872,11 @@ function renderComparison(){
   result.innerHTML = `
     <div style="display:flex; gap:10px; margin-top:6px;">
       <div style="flex:1; text-align:center;">
-        <img src="${a.photo}" style="width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:12px;">
+        <img src="${a.photo}" style="width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:12px; cursor:zoom-in;" onclick="openLightbox('${a.photo}')">
         <div style="font-size:11px; color:var(--ink-soft); margin-top:6px; font-family:var(--mono);">${new Date(a.ts).toLocaleDateString('es-AR')} · ${a.kg}kg</div>
       </div>
       <div style="flex:1; text-align:center;">
-        <img src="${b.photo}" style="width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:12px;">
+        <img src="${b.photo}" style="width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:12px; cursor:zoom-in;" onclick="openLightbox('${b.photo}')">
         <div style="font-size:11px; color:var(--ink-soft); margin-top:6px; font-family:var(--mono);">${new Date(b.ts).toLocaleDateString('es-AR')} · ${b.kg}kg</div>
       </div>
     </div>
@@ -1005,23 +1018,30 @@ function last7(arrKey, valKey){
 }
 function drawSpark(svgId, points, isLine){
   const svg = document.getElementById(svgId);
-  if(!points.length || points.every(p=>!p.v)){ svg.innerHTML = '<text x="150" y="34" text-anchor="middle" font-size="11" fill="#B7BEB5">Sin datos suficientes todavía</text>'; return; }
+  if(!points.length || points.every(p=>!p.v)){ svg.innerHTML = '<text x="150" y="50" text-anchor="middle" font-size="11" fill="#B7BEB5">Sin datos suficientes todavía</text>'; return; }
   const vals = points.map(p=>p.v);
   const min = Math.min(...vals), max = Math.max(...vals);
   const range = (max-min)||1;
-  const w=300,h=64,pad=6;
-  const step = (w-pad*2)/(points.length-1||1);
+  const w=300,h=100, padX=14, padTop=18, padBottom=20;
+  const plotH = h-padTop-padBottom;
+  const step = (w-padX*2)/(points.length-1||1);
   const coords = points.map((p,i)=>{
-    const x = pad+i*step;
-    const y = h-pad - ((p.v-min)/range)*(h-pad*2);
+    const x = padX+i*step;
+    const y = padTop + (plotH - ((p.v-min)/range)*plotH);
     return [x,y];
   });
   const path = coords.map((c,i)=> (i===0?'M':'L')+c[0]+' '+c[1]).join(' ');
-  const areaPath = path + ` L ${coords[coords.length-1][0]} ${h} L ${coords[0][0]} ${h} Z`;
+  const areaPath = path + ` L ${coords[coords.length-1][0]} ${h-padBottom} L ${coords[0][0]} ${h-padBottom} Z`;
+  const fmtShort = (iso)=>{ const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}); };
+  const valLabel = (v)=> isLine ? v.toFixed(1) : (v>=1000 ? (v/1000).toFixed(1)+'L' : (v||0)+'ml');
   svg.innerHTML = `
     <path d="${areaPath}" fill="#E4EEE3" stroke="none"></path>
     <path d="${path}" fill="none" stroke="#52705C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
-    ${coords.map(c=>`<circle cx="${c[0]}" cy="${c[1]}" r="2.5" fill="#52705C"/>`).join('')}
+    ${coords.map((c,i)=>`
+      <circle cx="${c[0]}" cy="${c[1]}" r="2.5" fill="#52705C"/>
+      <text x="${c[0]}" y="${Math.max(9,c[1]-7)}" font-size="8.5" text-anchor="middle" fill="#1E2A28" font-family="IBM Plex Mono, monospace">${valLabel(points[i].v)}</text>
+      <text x="${c[0]}" y="${h-4}" font-size="8" text-anchor="middle" fill="#5C6B67">${fmtShort(points[i].date)}</text>
+    `).join('')}
   `;
 }
 
