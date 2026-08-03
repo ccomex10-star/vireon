@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vireon — Panel del nutricionista</title>
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#F7F8F4; --bg-card:#FFFFFF; --ink:#1E2A28; --ink-soft:#5C6B67; --line:#E4E7E0;
+    --sage:#7C9885; --sage-deep:#52705C; --sage-pale:#E4EEE3; --blue:#6C87A6; --blue-pale:#E6EBF2;
+    --radius:18px; --radius-sm:12px; --shadow:0 1px 2px rgba(30,42,40,.04), 0 8px 24px rgba(30,42,40,.06);
+    --serif:'Fraunces',Georgia,serif; --sans:'Manrope',-apple-system,sans-serif; --mono:'IBM Plex Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); padding-bottom:40px;}
+  h1,h2,h3{font-family:var(--serif); font-weight:500; margin:0;}
+  .num{font-family:var(--mono);}
+  .topbar{padding:18px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; background:#fff;}
+  .topbar svg{width:24px; height:24px;}
+  .topbar span{font-family:var(--serif); font-size:19px; font-weight:600;}
+  .wrap{max-width:720px; margin:0 auto; padding:20px;}
+  .card{background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius-sm); padding:16px; box-shadow:var(--shadow); margin-bottom:12px;}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;}
+  .card-label{font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-soft); font-weight:700; margin-bottom:6px;}
+  .card-value{font-family:var(--mono); font-size:24px; font-weight:500;}
+  .section-head{margin:26px 0 10px;}
+  .section-head h2{font-size:16px;}
+  .row{background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius-sm); padding:12px 14px; display:flex; gap:12px; align-items:center; margin-bottom:8px;}
+  .row-photo{width:42px; height:42px; border-radius:10px; object-fit:cover; flex-shrink:0;}
+  .row-emoji{font-size:20px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; background:var(--sage-pale); border-radius:10px; flex-shrink:0;}
+  .row-title{font-weight:700; font-size:14px;}
+  .row-sub{font-size:12px; color:var(--ink-soft); margin-top:1px;}
+  .row-time{font-family:var(--mono); font-size:11px; color:var(--ink-soft); margin-left:auto; flex-shrink:0;}
+  .empty{text-align:center; padding:30px; color:var(--ink-soft); font-size:13px; border:1px dashed var(--line); border-radius:var(--radius-sm);}
+  .tabs{display:flex; gap:8px; margin-bottom:16px; overflow-x:auto;}
+  .tabs button{flex-shrink:0; padding:8px 14px; border-radius:99px; border:1.5px solid var(--line); background:#fff; font-weight:700; font-size:13px; color:var(--ink-soft);}
+  .tabs button.active{background:var(--sage-deep); color:#fff; border-color:var(--sage-deep);}
+  .config{max-width:420px; margin:60px auto; padding:24px; text-align:center;}
+  .config input{width:100%; padding:12px; margin-bottom:10px; border:1.5px solid var(--line); border-radius:10px; font-size:14px;}
+  .config button{width:100%; padding:13px; background:var(--sage-deep); color:#fff; border:none; border-radius:10px; font-weight:700;}
+  #compare-view{display:flex; gap:10px;}
+  #compare-view img{width:50%; border-radius:10px; object-fit:cover; aspect-ratio:3/4;}
+  .row-photo, #compare-view img{cursor:zoom-in;}
+  .lightbox{position:fixed; inset:0; background:rgba(20,26,25,0.92); z-index:500; display:none; align-items:center; justify-content:center; padding:24px;}
+  .lightbox.show{display:flex;}
+  .lightbox img{max-width:100%; max-height:100%; border-radius:8px;}
+  .lightbox-close{position:absolute; top:20px; right:20px; background:rgba(255,255,255,0.15); border:none; color:#fff; width:38px; height:38px; border-radius:50%; font-size:20px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <svg viewBox="0 0 40 40" fill="none"><path d="M4 24c4 0 4-10 8-10s4 10 8 10 4-10 8-10 4 10 8 10" stroke="#52705C" stroke-width="3.5" stroke-linecap="round"/></svg>
+  <span>Vireon · Panel del nutricionista</span>
+</div>
+
+<div id="config-screen" class="config" style="display:none;">
+  <h1 style="font-size:22px; margin-bottom:8px;">Conectar</h1>
+  <p style="color:var(--ink-soft); font-size:13px; margin-bottom:18px;">Pedile a tu paciente el link completo que le da la app — ya trae estos datos cargados. Si te pasaron los datos por separado, completalos acá:</p>
+  <input type="text" id="cfg-url" placeholder="Project URL de Supabase">
+  <input type="text" id="cfg-key" placeholder="Anon public key">
+  <input type="text" id="cfg-pid" placeholder="ID de paciente">
+  <button onclick="manualConnect()">Ver panel</button>
+</div>
+
+<div class="wrap" id="main-wrap" style="display:none;">
+  <div class="section-head" style="margin-top:6px;"><h2 id="patient-label">Evolución del paciente</h2></div>
+
+  <div class="grid">
+    <div class="card"><div class="card-label">⚖️ Peso actual</div><div class="card-value" id="v-weight">—</div></div>
+    <div class="card"><div class="card-label">💧 Hidratación hoy</div><div class="card-value" id="v-water">—</div></div>
+    <div class="card"><div class="card-label">🏃 Entrenos (7 días)</div><div class="card-value" id="v-workouts">—</div></div>
+    <div class="card"><div class="card-label">😴 Sueño promedio (7 días)</div><div class="card-value" id="v-sleep">—</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="active" data-t="comidas" onclick="tab('comidas')">Comidas</button>
+    <button data-t="peso" onclick="tab('peso')">Peso</button>
+    <button data-t="fotos" onclick="tab('fotos')">Fotos</button>
+    <button data-t="animo" onclick="tab('animo')">Ánimo / Sueño</button>
+    <button data-t="entrenos" onclick="tab('entrenos')">Entrenos</button>
+  </div>
+
+  <div id="tab-comidas"></div>
+  <div id="tab-peso" style="display:none;"></div>
+  <div id="tab-fotos" style="display:none;"></div>
+  <div id="tab-animo" style="display:none;"></div>
+  <div id="tab-entrenos" style="display:none;"></div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="">
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+let SB_URL = params.get('u'), SB_KEY = params.get('k'), PID = params.get('p');
+let sb;
+
+function boot(){
+  if(!SB_URL || !SB_KEY || !PID){
+    document.getElementById('config-screen').style.display='block';
+    return;
+  }
+  connect();
+}
+function manualConnect(){
+  SB_URL = document.getElementById('cfg-url').value.trim();
+  SB_KEY = document.getElementById('cfg-key').value.trim();
+  PID = document.getElementById('cfg-pid').value.trim();
+  if(!SB_URL || !SB_KEY || !PID){ alert('Completá los tres campos'); return; }
+  connect();
+}
+async function connect(){
+  sb = window.supabase.createClient(SB_URL, SB_KEY);
+  document.getElementById('config-screen').style.display='none';
+  document.getElementById('main-wrap').style.display='block';
+  await loadAll();
+}
+
+function fmtDate(ts){ return new Date(ts).toLocaleDateString('es-AR',{day:'numeric',month:'short'}); }
+function fmtTime(ts){ return new Date(ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+function openLightbox(src){
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('show');
+}
+function closeLightbox(){ document.getElementById('lightbox').classList.remove('show'); }
+
+let DATA = {meals:[],hydration:[],weights:[],sleep:[],mood:[],workouts:[]};
+
+async function loadAll(){
+  const tables = ['meals','hydration','weights','sleep','mood','workouts'];
+  for(const t of tables){
+    const { data, error } = await sb.from(t).select('*').eq('patient_id', PID).order('ts',{ascending:false});
+    DATA[t] = error ? [] : data;
+  }
+  renderSummary();
+  renderComidas(); renderPeso(); renderFotos(); renderAnimo(); renderEntrenos();
+}
+
+function renderSummary(){
+  document.getElementById('v-weight').textContent = DATA.weights.length ? DATA.weights[0].kg+' kg' : '—';
+  const today = todayISO();
+  const waterToday = DATA.hydration.filter(h=>h.date===today).reduce((a,h)=>a+h.ml,0);
+  document.getElementById('v-water').textContent = (waterToday/1000).toFixed(1)+' L';
+  const weekAgo = Date.now()-7*86400000;
+  document.getElementById('v-workouts').textContent = DATA.workouts.filter(w=>w.ts>weekAgo).length;
+  const sleepWeek = DATA.sleep.filter(s=>s.ts>weekAgo);
+  document.getElementById('v-sleep').textContent = sleepWeek.length ? (sleepWeek.reduce((a,s)=>a+s.hours,0)/sleepWeek.length).toFixed(1)+'h' : '—';
+}
+
+function tab(name){
+  ['comidas','peso','fotos','animo','entrenos'].forEach(t=>{
+    document.getElementById('tab-'+t).style.display = t===name?'block':'none';
+  });
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active', b.dataset.t===name));
+}
+
+function renderComidas(){
+  const el = document.getElementById('tab-comidas');
+  if(!DATA.meals.length){ el.innerHTML='<div class="empty">Sin comidas registradas todavía.</div>'; return; }
+  el.innerHTML = DATA.meals.slice(0,40).map(m=>`
+    <div class="row">
+      ${m.photo?`<img class="row-photo" src="${m.photo}" onclick="openLightbox('${m.photo}')">`:'<div class="row-emoji">🍽️</div>'}
+      <div><div class="row-title">${esc(m.type)}${m.description?' · '+esc(m.description).slice(0,50):''}</div>
+      <div class="row-sub">${m.mood?esc(m.mood)+' · ':''}${m.cal?m.cal+' kcal':'sin calorías'}${m.hunger?' · hambre '+m.hunger+'/10':''}${m.fullness?' · saciedad '+m.fullness+'/10':''}</div></div>
+      <div class="row-time">${fmtDate(m.ts)} ${fmtTime(m.ts)}</div>
+    </div>`).join('');
+}
+function renderPeso(){
+  const el = document.getElementById('tab-peso');
+  if(!DATA.weights.length){ el.innerHTML='<div class="empty">Sin registros de peso todavía.</div>'; return; }
+  el.innerHTML = DATA.weights.map(w=>`
+    <div class="row">
+      ${w.photo?`<img class="row-photo" src="${w.photo}" onclick="openLightbox('${w.photo}')">`:'<div class="row-emoji">⚖️</div>'}
+      <div><div class="row-title">${w.kg} kg</div>
+      <div class="row-sub">${w.grasa?'Grasa '+w.grasa+'% · ':''}${w.musculo?'Músculo '+w.musculo+'%':''}</div></div>
+      <div class="row-time">${fmtDate(w.ts)}</div>
+    </div>`).join('');
+}
+function renderFotos(){
+  const el = document.getElementById('tab-fotos');
+  const withPhotos = DATA.weights.filter(w=>w.photo);
+  if(withPhotos.length<1){ el.innerHTML='<div class="empty">Todavía no hay fotos corporales cargadas.</div>'; return; }
+  let html = '';
+  if(withPhotos.length===1){
+    html += `<div class="card"><img src="${withPhotos[0].photo}" style="width:100%; border-radius:10px; cursor:zoom-in;" onclick="openLightbox('${withPhotos[0].photo}')"><div class="row-sub" style="margin-top:8px;">${fmtDate(withPhotos[0].ts)} · ${withPhotos[0].kg}kg · ${withPhotos[0].angle||''}</div></div>`;
+  } else {
+    const first = withPhotos[withPhotos.length-1], last = withPhotos[0];
+    const delta = (last.kg-first.kg).toFixed(1);
+    html += `
+      <div class="card">
+        <div id="compare-view">
+          <div><img src="${first.photo}" onclick="openLightbox('${first.photo}')"><div class="row-sub" style="text-align:center; margin-top:6px;">${fmtDate(first.ts)} · ${first.kg}kg</div></div>
+          <div><img src="${last.photo}" onclick="openLightbox('${last.photo}')"><div class="row-sub" style="text-align:center; margin-top:6px;">${fmtDate(last.ts)} · ${last.kg}kg</div></div>
+        </div>
+        <div style="text-align:center; margin-top:10px; font-weight:700; color:var(--sage-deep);">${delta>0?'+':''}${delta} kg</div>
+      </div>`;
+  }
+  html += `<div class="section-head"><h2 style="font-size:14px;">Todas las fotos</h2></div>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px;">
+      ${withPhotos.map(w=>`<img src="${w.photo}" style="width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:8px; cursor:zoom-in;" onclick="openLightbox('${w.photo}')">`).join('')}
+    </div>`;
+  el.innerHTML = html;
+}
+function renderAnimo(){
+  const el = document.getElementById('tab-animo');
+  const items = [
+    ...DATA.mood.map(m=>({icon:'💭', title:m.mood, ts:m.ts})),
+    ...DATA.sleep.map(s=>({icon:'😴', title:s.hours+'h de sueño'+(s.quality?' · calidad '+s.quality+'/5':''), ts:s.ts})),
+  ].sort((a,b)=>b.ts-a.ts);
+  if(!items.length){ el.innerHTML='<div class="empty">Sin registros todavía.</div>'; return; }
+  el.innerHTML = items.slice(0,40).map(e=>`
+    <div class="row"><div class="row-emoji">${e.icon}</div>
+    <div><div class="row-title">${esc(e.title)}</div></div>
+    <div class="row-time">${fmtDate(e.ts)} ${fmtTime(e.ts)}</div></div>`).join('');
+}
+function renderEntrenos(){
+  const el = document.getElementById('tab-entrenos');
+  if(!DATA.workouts.length){ el.innerHTML='<div class="empty">Sin entrenamientos registrados todavía.</div>'; return; }
+  el.innerHTML = DATA.workouts.slice(0,40).map(w=>`
+    <div class="row"><div class="row-emoji">🏃</div>
+    <div><div class="row-title">${esc(w.type)}</div>
+    <div class="row-sub">${w.dur} min${w.intensity?' · intensidad '+w.intensity+'/10':''}</div></div>
+    <div class="row-time">${fmtDate(w.ts)}</div></div>`).join('');
+}
+
+boot();
+</script>
+</body>
+</html>
